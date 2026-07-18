@@ -6,9 +6,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
-});
+let client = null;
 
 // Load system prompt from file
 let systemPrompt = '';
@@ -21,11 +19,20 @@ try {
   process.exit(1);
 }
 
+function getClient() {
+  if (!client) {
+    client = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY
+    });
+  }
+  return client;
+}
+
 export async function callClaude(userMessage) {
   try {
     logger.debug(`Sending message to Claude: "${userMessage}"`);
 
-    const message = await client.messages.create({
+    const message = await getClient().messages.create({
       model: 'claude-3-5-sonnet-20241022',
       max_tokens: 1024,
       system: systemPrompt,
