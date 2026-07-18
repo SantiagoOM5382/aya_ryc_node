@@ -1,9 +1,9 @@
 import dotenv from 'dotenv';
+dotenv.config();
+
 import logger from './src/utils/logger.js';
 import { initializeClient, getClient, sendMessage } from './src/whatsappClient.js';
 import { callClaude } from './src/claudeHandler.js';
-
-dotenv.config();
 
 // Validate environment
 if (!process.env.ANTHROPIC_API_KEY) {
