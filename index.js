@@ -20,8 +20,8 @@ async function startBot() {
 
     // Set up message listener
     client.on('message', async (message) => {
-      // Ignore group messages and bot's own messages
-      if (message.from === message.to || message.isGroupMsg) {
+      // Ignore group messages, bot's own messages, and empty messages
+      if (message.from === message.to || message.isGroupMsg || !message.body?.trim()) {
         return;
       }
 
