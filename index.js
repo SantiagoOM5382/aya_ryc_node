@@ -18,26 +18,23 @@ async function startBot() {
     // Initialize WhatsApp client
     const client = await initializeClient();
 
-    // Set up message listener
-    client.on('message', async (message) => {
-      // Ignore group messages, bot's own messages, and empty messages
-      if (message.from === message.to || message.isGroupMsg || !message.body?.trim()) {
-        return;
-      }
+    // Set up message listener for Baileys
+    client.on('message', async (messageData) => {
+      const { from, body } = messageData;
 
       try {
-        logger.info(`📨 Message from ${message.from}: "${message.body}"`);
+        logger.debug(`Processing message from ${from}: "${body}"`);
 
         // Call Claude
-        const response = await callClaude(message.body);
+        const response = await callClaude(body);
 
         // Send response back
-        await sendMessage(message.from, response);
-        logger.info(`✅ Response sent to ${message.from}`);
+        await sendMessage(from, response);
+        logger.info(`✅ Response sent to ${from}`);
       } catch (error) {
-        logger.error(`Failed to process message from ${message.from}`, error);
-        // Optionally send error message to user
-        await sendMessage(message.from, 'Disculpa, hubo un error. Intenta de nuevo.');
+        logger.error(`Failed to process message from ${from}`, error);
+        // Send error message to user
+        await sendMessage(from, 'Disculpa, hubo un error. Intenta de nuevo.');
       }
     });
 
