@@ -1,10 +1,7 @@
-import Anthropic from '@anthropic-ai/sdk';
-import fs from 'fs';
-import path from 'path';
-import logger from './utils/logger.js';
-import { fileURLToPath } from 'url';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const Anthropic = require('@anthropic-ai/sdk');
+const fs = require('fs');
+const path = require('path');
+const logger = require('./utils/logger.js');
 
 let client = null;
 
@@ -28,7 +25,7 @@ function getClient() {
   return client;
 }
 
-export async function callClaude(userMessage) {
+async function callClaude(userMessage) {
   try {
     logger.debug(`Sending message to Claude: "${userMessage}"`);
 
@@ -53,3 +50,5 @@ export async function callClaude(userMessage) {
     return 'Disculpa, tuve un problema procesando tu mensaje. Conectamos con un agente: +57 1 XXXX XXXX';
   }
 }
+
+module.exports = { callClaude };

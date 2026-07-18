@@ -1,8 +1,7 @@
-import dotenv from 'dotenv';
-dotenv.config();
+require('dotenv').config();
 
-import logger from './src/utils/logger.js';
-import { initializeClient } from './src/whatsappClient.js';
+const logger = require('./src/utils/logger.js');
+const { initializeClient } = require('./src/whatsappClient.js');
 
 // Validate environment
 if (!process.env.ANTHROPIC_API_KEY) {

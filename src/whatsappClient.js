@@ -1,11 +1,11 @@
-import { Client, LocalAuth } from 'whatsapp-web.js';
-import qrcode from 'qrcode-terminal';
-import logger from './utils/logger.js';
-import { callClaude } from './claudeHandler.js';
+const { Client, LocalAuth } = require('whatsapp-web.js');
+const qrcode = require('qrcode-terminal');
+const logger = require('./utils/logger.js');
+const { callClaude } = require('./claudeHandler.js');
 
 let client = null;
 
-export async function initializeClient() {
+async function initializeClient() {
   client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
@@ -87,9 +87,11 @@ export async function initializeClient() {
   return client;
 }
 
-export function getClient() {
+function getClient() {
   if (!client) {
     throw new Error('WhatsApp client not initialized. Call initializeClient() first.');
   }
   return client;
 }
+
+module.exports = { initializeClient, getClient };
