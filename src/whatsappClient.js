@@ -12,8 +12,7 @@ export async function initializeClient() {
 
   sock = makeWASocket({
     auth: state,
-    printQRInTerminal: true,
-    logger: logger
+    printQRInTerminal: true
   });
 
   // Handle credentials update
