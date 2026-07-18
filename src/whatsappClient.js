@@ -50,11 +50,18 @@ export function getClient() {
 }
 
 export async function sendMessage(chatId, message) {
-  try {
-    const chat = await client.getChatById(chatId);
-    await chat.sendMessage(message);
-    logger.debug(`Message sent to ${chatId}: "${message}"`);
-  } catch (error) {
-    logger.error(`Failed to send message to ${chatId}`, error);
+  let lastError;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const chat = await client.getChatById(chatId);
+      await chat.sendMessage(message);
+      logger.info(`✅ Message sent to ${chatId}`);
+      return;
+    } catch (error) {
+      lastError = error;
+      logger.warn(`Attempt ${attempt}/3 failed for ${chatId}, retrying...`);
+      if (attempt < 3) await new Promise(r => setTimeout(r, 1000));
+    }
   }
+  logger.error(`Failed to send message to ${chatId} after 3 attempts`, lastError);
 }
