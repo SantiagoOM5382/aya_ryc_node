@@ -2,6 +2,9 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const logger = require('./utils/logger.js');
 const { callClaude } = require('./claudeHandler.js');
+const { transcribeAudio } = require('./utils/transcriptionHandler.js');
+const path = require('path');
+const fs = require('fs');
 
 let client = null;
 
@@ -37,16 +40,105 @@ async function initializeClient() {
 
   // Handle incoming messages
   client.on('message', async (message) => {
-    // Ignore group messages, bot's own messages, and empty messages
-    if (message.isGroupMsg || !message.body?.trim()) {
+    // Ignore group messages and bot's own messages
+    if (message.isGroupMsg) {
       return;
     }
 
     try {
+      // Check if message has media (audio)
+      if (message.hasMedia) {
+        logger.info(`📻 Audio message from ${message.from}`);
+
+        try {
+          // Download media
+          const media = await message.downloadMedia();
+          logger.debug(`Media downloaded, MIME type: ${media.mimetype}`);
+
+          // Create temporary file with correct extension
+          const ext = media.mimetype.split('/')[1] === 'ogg' ? 'ogg' : 'm4a';
+          const tempFileName = `audio_${Date.now()}.${ext}`;
+          const tempFilePath = path.join(__dirname, '..', '.wwebjs_cache', tempFileName);
+
+          // Ensure directory exists
+          const tempDir = path.dirname(tempFilePath);
+          if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+          }
+
+          // Write audio file
+          fs.writeFileSync(tempFilePath, Buffer.from(media.data, 'base64'));
+          logger.debug(`Audio file saved to: ${tempFilePath}`);
+
+          // Transcribe audio using Whisper
+          const transcript = await transcribeAudio(tempFilePath);
+
+          // Check for errors (null means validation failed or transcription error)
+          if (!transcript) {
+            logger.warn(`Audio transcription failed or audio too long`);
+            try {
+              await message.reply('Por favor, envía audios de máximo 1 minuto o intenta de nuevo.');
+            } catch (replyError) {
+              logger.error(`Failed to send error message`, replyError);
+            }
+            // Clean up temp file
+            try {
+              fs.unlinkSync(tempFilePath);
+            } catch (unlinkError) {
+              logger.warn(`Failed to delete temp audio file: ${unlinkError.message}`);
+            }
+            return;
+          }
+
+          logger.info(`✅ Audio transcribed: "${transcript.substring(0, 50)}..."`);
+
+          // Call Claude with transcribed text (normal text flow)
+          const response = await callClaude(transcript, message.from);
+          logger.debug(`Claude response ready: "${response}"`);
+
+          // Send response
+          try {
+            await message.reply(response);
+            logger.info(`✅ Response sent to ${message.from}`);
+          } catch (sendError) {
+            logger.error(`Failed to send via reply(): ${sendError.message}`);
+            try {
+              const chat = await message.getChat();
+              await chat.sendMessage(response);
+              logger.info(`✅ Response sent to ${message.from} (via chat)`);
+            } catch (chatError) {
+              logger.error(`Failed to send via chat.sendMessage(): ${chatError.message}`);
+            }
+          }
+
+          // Clean up temporary file
+          try {
+            fs.unlinkSync(tempFilePath);
+            logger.debug(`Temporary audio file deleted: ${tempFilePath}`);
+          } catch (unlinkError) {
+            logger.warn(`Failed to delete temporary file: ${unlinkError.message}`);
+          }
+
+        } catch (mediaError) {
+          logger.error(`Failed to process audio message: ${mediaError.message}`);
+          try {
+            await message.reply('Disculpa, no pude descargar el audio. Intenta de nuevo.');
+          } catch (replyError) {
+            logger.error(`Failed to send media error message`, replyError);
+          }
+        }
+        return;
+      }
+
+      // Text message handling (existing flow)
+      if (!message.body?.trim()) {
+        return;
+      }
+
       logger.info(`📨 Message from ${message.from}: "${message.body}"`);
 
-      // Call Claude to get response
-      const response = await callClaude(message.body);
+      // Call Claude to get response with user ID for conversation history
+      const response = await callClaude(message.body, message.from);
       logger.debug(`Claude response ready: "${response}"`);
 
       // Send response back
