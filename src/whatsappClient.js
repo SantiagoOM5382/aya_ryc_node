@@ -93,7 +93,7 @@ async function initializeClient() {
           logger.info(`✅ Audio transcribed: "${transcript.substring(0, 50)}..."`);
 
           // Call Claude with transcribed text (normal text flow)
-          const response = await callClaude(transcript, message.from);
+          const response = await callClaude(transcript);
           logger.debug(`Claude response ready: "${response}"`);
 
           // Send response
@@ -138,7 +138,7 @@ async function initializeClient() {
       logger.info(`📨 Message from ${message.from}: "${message.body}"`);
 
       // Call Claude to get response with user ID for conversation history
-      const response = await callClaude(message.body, message.from);
+      const response = await callClaude(message.body);
       logger.debug(`Claude response ready: "${response}"`);
 
       // Send response back
