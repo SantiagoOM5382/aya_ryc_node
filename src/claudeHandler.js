@@ -2,6 +2,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const fs = require('fs');
 const path = require('path');
 const logger = require('./utils/logger.js');
+const { addMessage, getHistory } = require('./conversationHistory.js');
 
 let client = null;
 
@@ -25,24 +26,28 @@ function getClient() {
   return client;
 }
 
-async function callClaude(userMessage) {
+async function callClaude(userMessage, userId) {
   try {
+    logger.debug(`Processing message from ${userId}`);
     logger.debug(`Sending message to Claude: "${userMessage}"`);
+
+    // Track user message in history
+    addMessage(userId, 'user', userMessage);
+    const history = getHistory(userId);
 
     const message = await getClient().messages.create({
       model: 'claude-opus-4-1-20250805',
       max_tokens: 1024,
       system: systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: userMessage
-        }
-      ]
+      messages: history
     });
 
     const response = message.content[0].text;
     logger.debug(`Claude response: "${response}"`);
+
+    // Track assistant response in history
+    addMessage(userId, 'assistant', response);
+
     return response;
   } catch (error) {
     logger.error('Claude API call failed', error);

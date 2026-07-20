@@ -55,6 +55,12 @@ async function initializeClient() {
           const media = await message.downloadMedia();
           logger.debug(`Media downloaded, MIME type: ${media.mimetype}`);
 
+          // ONLY process audio files
+          if (!media.mimetype.startsWith('audio/')) {
+            logger.debug(`Non-audio media received (${media.mimetype}), ignoring`);
+            return; // Silently ignore non-audio media
+          }
+
           // Create temporary file with correct extension
           const ext = media.mimetype.split('/')[1] === 'ogg' ? 'ogg' : 'm4a';
           const tempFileName = `audio_${Date.now()}.${ext}`;
@@ -93,7 +99,7 @@ async function initializeClient() {
           logger.info(`✅ Audio transcribed: "${transcript.substring(0, 50)}..."`);
 
           // Call Claude with transcribed text (normal text flow)
-          const response = await callClaude(transcript);
+          const response = await callClaude(transcript, message.from);
           logger.debug(`Claude response ready: "${response}"`);
 
           // Send response
@@ -138,7 +144,7 @@ async function initializeClient() {
       logger.info(`📨 Message from ${message.from}: "${message.body}"`);
 
       // Call Claude to get response with user ID for conversation history
-      const response = await callClaude(message.body);
+      const response = await callClaude(message.body, message.from);
       logger.debug(`Claude response ready: "${response}"`);
 
       // Send response back
