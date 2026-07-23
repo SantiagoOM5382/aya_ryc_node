@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: aya-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-aya_ryc}
+      MYSQL_USER: ${MYSQL_USER:-aya_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-aya_password}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  aya-bot:
+    build: .
+    container_name: aya-ryc-bot
+    environment:
+      - NODE_ENV=production
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=${MYSQL_USER:-aya_user}
+      - DB_PASSWORD=${MYSQL_PASSWORD:-aya_password}
+      - DB_NAME=${MYSQL_DATABASE:-aya_ryc}
+    volumes:
+      - .wwebjs_auth:/app/.wwebjs_auth
+      - .wwebjs_cache:/app/.wwebjs_cache
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+    depends_on:
+      mysql:
+        condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  mysql_data:

@@ -1,7 +1,8 @@
 require('dotenv').config();
 
 const logger = require('./src/utils/logger.js');
-const { initializeClient } = require('./src/whatsappClient.js');
+const { startBot } = require('./src/bot.js');
+const { startAPI } = require('./src/api.js');
 
 // Validate environment
 if (!process.env.ANTHROPIC_API_KEY) {
@@ -9,18 +10,23 @@ if (!process.env.ANTHROPIC_API_KEY) {
   process.exit(1);
 }
 
-async function startBot() {
+async function start() {
   try {
-    logger.info('🤖 Starting AYA Bot...');
-    await initializeClient();
+    // Start API server
+    await startAPI();
+
+    // Start WhatsApp bot
+    await startBot();
+
+    logger.info('✅ All services started successfully');
   } catch (error) {
-    logger.error('Failed to start bot', error);
+    logger.error('Failed to start services', error);
     process.exit(1);
   }
 }
 
-// Start the bot
-startBot();
+// Start everything
+start();
 
 // Graceful shutdown
 process.on('SIGINT', () => {

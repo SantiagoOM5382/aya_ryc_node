@@ -5,3 +5,8 @@ node_modules/
 *.log
 .wwebjs_auth/
 .session-data/
+
+
+CLAUDE.md
+/docs
+/.superpowers
