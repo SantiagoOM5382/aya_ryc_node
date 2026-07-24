@@ -9,7 +9,7 @@ const { setWhatsAppClient } = require('./advisorNotifier.js');
 const { endpoints } = require('../../config/api.js');
 const { getReservationByPhone, getPendingReservations } = require('../../services/chatReservationService.js');
 const { saveOrUpdateContact, getContactByPhone, blockByPhone, unblockByPhone, listBlocked, isBlocked } = require('../../services/clientContactService.js');
-const { getActiveAssignmentsWithDetails } = require('../../services/chatAssignmentService.js');
+const { getActiveAssignmentsWithDetails, releaseAllAssignments } = require('../../services/chatAssignmentService.js');
 const { sendQREmail } = require('../../services/herald.js');
 const db = require('../../db/database.js');
 const stateManager = require('../../utils/stateManager.js');
@@ -491,6 +491,31 @@ async function initializeClient() {
               logger.error(`Error getting active assignments: ${error.message}`);
               try {
                 await message.reply('⚠️ Error al obtener clientes atendidos.');
+              } catch (replyError) {
+                logger.debug(`Failed to send error reply`, replyError);
+              }
+            }
+            logger.info(`🛑 Returning early to avoid Claude processing`);
+            return;
+          }
+
+          // Check for "liberate all" command - releases all active assignments
+          if (msgLower === 'liberate all') {
+            logger.info(`✅ Detected "liberate all" command`);
+
+            try {
+              const result = await releaseAllAssignments();
+              const responseMsg = `🎉 *LIBERACIÓN MASIVA COMPLETADA*\n✅ Liberados: ${result.released}\n❌ Errores: ${result.failed}`;
+
+              try {
+                await message.reply(responseMsg);
+              } catch (replyError) {
+                logger.debug(`Failed to send liberate all reply`, replyError);
+              }
+            } catch (error) {
+              logger.error(`Error releasing all assignments: ${error.message}`);
+              try {
+                await message.reply(`⚠️ Error al liberar todos los clientes: ${error.message}`);
               } catch (replyError) {
                 logger.debug(`Failed to send error reply`, replyError);
               }
