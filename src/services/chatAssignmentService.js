@@ -344,7 +344,7 @@ async function releaseAllAssignments() {
 
         // Record in history
         await recordAssignmentHistory(
-          assignment.chat_reservation_id,
+          assignment.id,
           assignment.intranet_username,
           'released_bulk',
           durationMinutes,
