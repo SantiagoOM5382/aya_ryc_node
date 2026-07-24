@@ -12,6 +12,7 @@ const { saveOrUpdateContact, getContactByPhone, blockByPhone, unblockByPhone, li
 const { getActiveAssignmentsWithDetails } = require('../../services/chatAssignmentService.js');
 const { sendQREmail } = require('../../services/herald.js');
 const db = require('../../db/database.js');
+const stateManager = require('../../utils/stateManager.js');
 
 let client = null;
 
@@ -168,6 +169,8 @@ async function initializeClient() {
   client.on('ready', async () => {
     logger.info('✅ WhatsApp client is ready!');
     setWhatsAppClient(client);
+    const state = stateManager.loadState();
+    logger.info(`🤖 Claude state: ${state.claudeEnabled ? '✅ ACTIVE' : '🔴 DOWN'}`);
 
     // Load chats from WhatsApp Web
     try {
@@ -722,6 +725,42 @@ async function initializeClient() {
             return;
           }
 
+          // Check for "claude down" command
+          if (msgLower.includes('claude down')) {
+            logger.info(`✅ Detected "claude down" command`);
+            try {
+              stateManager.saveState({ claudeEnabled: false });
+              await message.reply('🔴 Claude ha sido desactivado. El bot no responderá mensajes.');
+            } catch (error) {
+              logger.error(`Error disabling Claude: ${error.message}`);
+              try {
+                await message.reply('⚠️ Error al desactivar Claude.');
+              } catch (replyError) {
+                logger.debug(`Failed to send error reply`, replyError);
+              }
+            }
+            logger.info(`🛑 Returning early to avoid Claude processing`);
+            return;
+          }
+
+          // Check for "claude activate" command
+          if (msgLower.includes('claude activate')) {
+            logger.info(`✅ Detected "claude activate" command`);
+            try {
+              stateManager.saveState({ claudeEnabled: true });
+              await message.reply('✅ Claude ha sido activado. El bot responderá mensajes.');
+            } catch (error) {
+              logger.error(`Error enabling Claude: ${error.message}`);
+              try {
+                await message.reply('⚠️ Error al activar Claude.');
+              } catch (replyError) {
+                logger.debug(`Failed to send error reply`, replyError);
+              }
+            }
+            logger.info(`🛑 Returning early to avoid Claude processing`);
+            return;
+          }
+
         }
 
         // Ignore other group messages
@@ -856,6 +895,13 @@ async function initializeClient() {
           }
           return;
         }
+      }
+
+      // Check if Claude is enabled
+      const state = stateManager.loadState();
+      if (!state.claudeEnabled) {
+        logger.debug(`Claude is disabled (claude down), ignoring message from ${message.from}`);
+        return;
       }
 
       // Call Claude to get response with user ID for conversation history
