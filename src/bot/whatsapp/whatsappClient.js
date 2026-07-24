@@ -940,9 +940,9 @@ async function initializeClient() {
 
       // Check if current message contains advisor commands (same session)
       logger.debug(`Checking current message for "está siendo atendido por"...`);
-      if (isAdvisorClaimingChat(message.body)) {
+      if (hasAssignmentMessage(message.body)) {
         logger.info(`🔄 DETECTED: Advisor claiming chat in current message`);
-        const advisorName = extractAdvisorName(message.body);
+        const { advisorName } = extractAdvisorAndPhone(message.body);
         logger.info(`🔄 Extracted advisor name: "${advisorName}"`);
 
         if (advisorName) {
