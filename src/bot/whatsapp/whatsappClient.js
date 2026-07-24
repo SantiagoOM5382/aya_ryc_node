@@ -1,5 +1,6 @@
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
-const qrcode = require('qrcode-terminal');
+const qrcodeTerminal = require('qrcode-terminal');
+const qrcodeImage = require('qrcode');
 const fs = require('fs');
 const path = require('path');
 const logger = require('../../utils/logger.js');
@@ -9,6 +10,7 @@ const { endpoints } = require('../../config/api.js');
 const { getReservationByPhone, getPendingReservations } = require('../../services/chatReservationService.js');
 const { saveOrUpdateContact, getContactByPhone, blockByPhone, unblockByPhone, listBlocked, isBlocked } = require('../../services/clientContactService.js');
 const { getActiveAssignmentsWithDetails } = require('../../services/chatAssignmentService.js');
+const { sendQREmail } = require('../../services/herald.js');
 const db = require('../../db/database.js');
 
 let client = null;
@@ -16,48 +18,6 @@ let client = null;
 // Track active chats for broadcast (populated from incoming messages)
 const activeChats = new Map(); // Map<chatId, chatObject>
 
-// Persist chats to file for recovery after restart
-const CHATS_PERSIST_FILE = path.join(__dirname, '../../.chats-persist.json');
-
-function saveChatsToFile() {
-  try {
-    const chatsArray = Array.from(activeChats.entries()).map(([id, chat]) => ({
-      id,
-      name: chat.name,
-      phoneNumber: chat.phoneNumber || null,
-      archived: chat.archived
-    }));
-    fs.writeFileSync(CHATS_PERSIST_FILE, JSON.stringify(chatsArray, null, 2));
-    logger.debug(`💾 Saved ${chatsArray.length} chats to persistence file`);
-  } catch (error) {
-    logger.warn(`⚠️ Could not save chats to file: ${error.message}`);
-  }
-}
-
-function loadChatsFromFile() {
-  try {
-    if (!fs.existsSync(CHATS_PERSIST_FILE)) {
-      logger.debug(`📁 No persisted chats file found`);
-      return 0;
-    }
-
-    const chatsData = JSON.parse(fs.readFileSync(CHATS_PERSIST_FILE, 'utf-8'));
-    if (!Array.isArray(chatsData)) return 0;
-
-    // Restore chat IDs from persistence file
-    for (const chatData of chatsData) {
-      if (chatData.id) {
-        activeChats.set(chatData.id, { id: { _serialized: chatData.id }, name: chatData.name || null });
-      }
-    }
-
-    logger.info(`📁 Loaded ${chatsData.length} chat IDs from persistence file`);
-    return chatsData.length;
-  } catch (error) {
-    logger.warn(`⚠️ Could not load chats from file: ${error.message}`);
-    return 0;
-  }
-}
 
 // Helper to send message to a chat by ID
 async function sendMessageToChatId(chatId, message, delay = 1000) {
@@ -76,22 +36,23 @@ async function sendMessageToChatId(chatId, message, delay = 1000) {
   }
 }
 
-// Extract advisor name from "atendido por Juan Pérez" or "Está siendo atendido por Juan Pérez" format
-function extractAdvisorName(text) {
-  if (!text) return null;
-  // Match: "atendido por [name]" or "está siendo atendido por [name]" - capture everything after "por" until dash or end
-  const match = text.match(/(?:está\s*siendo\s*)?atendido\s*por[:\s]*([^-\n]+?)(?:\s*[-–]|$)/i);
+// Extract advisor name and phone from "atiende [name] [phone]" format
+function extractAdvisorAndPhone(text) {
+  if (!text) return { advisorName: null, phone: null };
+  const match = text.match(/atiende\s+(\S+)\s+(\d+)/i);
   if (match) {
-    return match[1].trim();
+    return {
+      advisorName: match[1],
+      phone: match[2]
+    };
   }
-  return null;
+  return { advisorName: null, phone: null };
 }
 
-// Check if message indicates advisor is taking over
-function isAdvisorClaimingChat(text) {
+// Check if message indicates assignment (contains "atiende")
+function hasAssignmentMessage(text) {
   if (!text) return false;
-  const lowerText = text.toLowerCase();
-  return lowerText.includes('está siendo atendido por');
+  return text.toLowerCase().includes('atiende');
 }
 
 // Check if message indicates end of advisor service
@@ -168,9 +129,39 @@ async function initializeClient() {
   });
 
   // QR code for authentication
-  client.on('qr', (qr) => {
-    logger.info('📱 Scan this QR code with your phone:');
-    qrcode.generate(qr, { small: true });
+  client.on('qr', async (qr) => {
+    try {
+      // Generate QR as base64 image
+      const qrBase64 = await qrcodeImage.toDataURL(qr, {
+        type: 'image/png',
+        width: 300,
+        margin: 1,
+        color: { dark: '#000000', light: '#FFFFFF' }
+      });
+
+      // Send to Herald if admin email is configured
+      const adminEmail = process.env.QR_ADMIN_EMAIL;
+      if (adminEmail) {
+        try {
+          await sendQREmail(adminEmail, qrBase64);
+          logger.info(`📧 QR sent to ${adminEmail} via Herald`);
+        } catch (error) {
+          logger.warn(`⚠️ Failed to send QR via Herald: ${error.message}`);
+          // Fall back to terminal display
+          logger.info('📱 Displaying QR in terminal instead:');
+          qrcodeTerminal.generate(qr, { small: true });
+        }
+      } else {
+        // No email configured, show in terminal
+        logger.info('📱 No QR_ADMIN_EMAIL configured. Displaying QR in terminal:');
+        qrcodeTerminal.generate(qr, { small: true });
+      }
+    } catch (error) {
+      logger.error(`Error handling QR: ${error.message}`);
+      // Fallback: always show in terminal
+      logger.info('📱 Fallback: Displaying QR in terminal:');
+      qrcodeTerminal.generate(qr, { small: true });
+    }
   });
 
   // Ready event
@@ -178,13 +169,7 @@ async function initializeClient() {
     logger.info('✅ WhatsApp client is ready!');
     setWhatsAppClient(client);
 
-    // Load persisted chats from file first
-    const persistedCount = loadChatsFromFile();
-    if (persistedCount > 0) {
-      logger.info(`✅ Recovered ${persistedCount} chats from persistence file`);
-    }
-
-    // Try to load chats from WhatsApp Web
+    // Load chats from WhatsApp Web
     try {
       const allChats = await client.getChats();
       if (allChats && Array.isArray(allChats)) {
@@ -200,7 +185,6 @@ async function initializeClient() {
         }
         if (activeChats.size > 0) {
           logger.info(`✅ Loaded ${activeChats.size} chats from WhatsApp Web`);
-          saveChatsToFile();
         }
       }
     } catch (error) {
@@ -245,16 +229,11 @@ async function initializeClient() {
           const msgLower = message.body.toLowerCase();
           logger.info(`📢 Group message in "Clientes": "${message.body.substring(0, 50)}..."`);
 
-          // Check for advisor claiming chat (formato: "atendido por [nombre] - [teléfono]")
-          if (msgLower.includes('atendido por')) {
-            logger.info(`✅ Detected "atendido por" in group message`);
-            const advisorName = extractAdvisorName(message.body);
-            logger.debug(`🔍 Extracted advisor name: "${advisorName}"`);
-
-            // Extract phone if provided: "atendido por Santiago Ortega - 573001234567"
-            const phoneMatch = message.body.match(/[-–]\s*(\+?\d{10,})/);
-            const clientPhone = phoneMatch ? phoneMatch[1] : null;
-            logger.debug(`🔍 Extracted client phone: "${clientPhone}"`);
+          // Check for advisor claiming chat (formato: "atiende [nombre] [teléfono]")
+          if (hasAssignmentMessage(msgLower)) {
+            logger.info(`✅ Detected "atiende" in group message`);
+            const { advisorName, phone: clientPhone } = extractAdvisorAndPhone(message.body);
+            logger.debug(`🔍 Extracted advisor name: "${advisorName}", phone: "${clientPhone}"`);
 
             if (advisorName && clientPhone) {
               logger.info(`✅ Advisor: "${advisorName}", Client Phone: "${clientPhone}"`);
@@ -305,7 +284,7 @@ async function initializeClient() {
             } else {
               logger.warn(`⚠️ Could not extract complete info from: "${message.body}"`);
               logger.info(`💡 Extracted - Name: "${advisorName}", Phone: "${clientPhone}"`);
-              logger.info(`💡 Format should be: "atendido por Santiago Ortega - 3017551147"`);
+              logger.info(`💡 Format should be: "atiende valentina 3245184132"`);
             }
             logger.info(`🛑 Returning early to avoid Claude processing`);
             return;
@@ -811,7 +790,6 @@ async function initializeClient() {
       try {
         activeChats.set(message.from, { id: { _serialized: message.from }, name: null });
         logger.debug(`✅ Chat ID tracked for broadcast: ${message.from}`);
-        saveChatsToFile(); // Persist whenever a chat is added
       } catch (error) {
         logger.debug(`Could not track chat: ${error.message}`);
       }
