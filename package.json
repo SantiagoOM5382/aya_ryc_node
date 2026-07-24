@@ -23,6 +23,7 @@
     "express": "^4.18.2",
     "fluent-ffmpeg": "^2.1.2",
     "mysql2": "^3.6.5",
+    "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0",
     "whatsapp-web.js": "^1.34.7"
   },

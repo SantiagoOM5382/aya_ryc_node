@@ -1,6 +1,7 @@
 const logger = require('../utils/logger.js');
+const config = require('../config/index.js');
 
-const HERALD_BASE_URL = process.env.HERALD_URL || 'http://ec2-54-165-203-255.compute-1.amazonaws.com';
+const HERALD_BASE_URL = config.herald.url;
 const HERALD_QR_ENDPOINT = '/herald/v1/whatsapp/qr';
 
 async function sendQREmail(email, qrBase64) {

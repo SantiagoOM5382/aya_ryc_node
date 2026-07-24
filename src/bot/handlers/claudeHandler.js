@@ -253,7 +253,7 @@ function getClient() {
   if (!client) {
     client = new Anthropic({
       apiKey: process.env.ANTHROPIC_API_KEY,
-      timeout: 60000  // 60 seconds timeout
+      timeout: 120000  // 120 seconds timeout
     });
   }
   return client;
@@ -456,7 +456,7 @@ async function callClaude(userMessage, userId) {
     logger.error('Claude API call failed', error);
     // Return fallback message in Spanish
     return {
-      text: 'Disculpa, tuve un problema procesando tu mensaje. Conectamos con un agente: +57 1 XXXX XXXX',
+      text: '¿Podrías enviar el mensaje nuevamente? No pude recibirlo correctamente.',
       imagePaths: [],
       destination: null
     };
@@ -615,7 +615,7 @@ async function callClaudeWithAudio(audioBase64, mimeType, userId) {
     logger.error(`Claude audio call failed: ${error.message}`);
     logger.error(`Error details:`, error);
     return {
-      text: 'Disculpa, tuve un problema procesando el audio. Intenta de nuevo.',
+      text: '¿Podrías enviar el mensaje nuevamente? No pude recibirlo correctamente.',
       imagePaths: [],
       destination: null
     };

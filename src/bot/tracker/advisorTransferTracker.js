@@ -7,8 +7,10 @@ const TRANSFER_LOG = path.join(LOGS_DIR, 'advisor-transfer.log');
 const TRANSFER_STATE = path.join(LOGS_DIR, 'advisor-transfer.json');
 
 // Keywords that indicate chat is ready to transfer to advisor
+// NOTE: these are a FALLBACK only. The primary signal is the fixed summary
+// header (RESUMEN_HEADER below) since closing sentences in the prompt change
+// over time and silently break detection if kept in sync manually here.
 const TRANSFER_READY_KEYWORDS = [
-  // Explicit transfer mentions - only these specific phrases indicate final transfer
   'te conectamos con nuestro asesor',
   'estás listo para ser asesorado',
   'solicitud está confirmada',
@@ -19,8 +21,14 @@ const TRANSFER_READY_KEYWORDS = [
   'resumen de su cotización',
   'reserva está lista',
   '✅ tu reserva está lista',
-  'asesor de reservas verificará'
+  'asesor de reservas verificará',
+  'regalame un momento, ya te atendemos',
+  'te transferire debido al gran flujo'
 ];
+
+// Fixed header that always appears in the reservation summary format
+// defined in prompts/ryc-system-prompt.txt - the most reliable signal.
+const RESUMEN_HEADER = 'resumen de reserva final';
 
 // Ensure logs directory exists
 function ensureLogsDir() {
@@ -34,6 +42,7 @@ function ensureLogsDir() {
 function isReadyForTransfer(botResponse) {
   if (!botResponse) return false;
   const lowerText = botResponse.toLowerCase();
+  if (lowerText.includes(RESUMEN_HEADER)) return true;
   return TRANSFER_READY_KEYWORDS.some(keyword => lowerText.includes(keyword));
 }
 

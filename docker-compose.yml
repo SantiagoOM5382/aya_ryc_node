@@ -3,26 +3,31 @@ version: '3.8'
 services:
   mysql:
     image: mysql:8.0
-    container_name: aya-mysql
+    container_name: aya-mysql-docker
     environment:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-aya_ryc}
       MYSQL_USER: ${MYSQL_USER:-aya_user}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-aya_password}
+      MYSQL_INITDB_SKIP_TZINFO: "yes"
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
-      - mysql_data:/var/lib/mysql
+      - mysql_data_docker:/var/lib/mysql
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 5s
       timeout: 3s
       retries: 10
+    networks:
+      - aya-network
 
   aya-bot:
-    build: .
-    container_name: aya-ryc-bot
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aya-ryc-bot-docker
     environment:
       - NODE_ENV=production
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
@@ -31,6 +36,11 @@ services:
       - DB_USER=${MYSQL_USER:-aya_user}
       - DB_PASSWORD=${MYSQL_PASSWORD:-aya_password}
       - DB_NAME=${MYSQL_DATABASE:-aya_ryc}
+      - HERALD_URL=${HERALD_URL:-http://host.docker.internal:8887}
+      - QR_ADMIN_EMAIL=${QR_ADMIN_EMAIL:-analista.tecnologia@euroamerican.com.co}
+      - WHATSAPP_CLIENTES_GROUP_ID=${WHATSAPP_CLIENTES_GROUP_ID}
+    ports:
+      - "3001:3000"
     volumes:
       - .wwebjs_auth:/app/.wwebjs_auth
       - .wwebjs_cache:/app/.wwebjs_cache
@@ -45,6 +55,12 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    networks:
+      - aya-network
 
 volumes:
-  mysql_data:
+  mysql_data_docker:
+
+networks:
+  aya-network:
+    driver: bridge
