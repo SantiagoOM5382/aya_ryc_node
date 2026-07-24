@@ -7,7 +7,7 @@ const logger = require('../../utils/logger.js');
 const { callClaude } = require('../handlers/claudeHandler.js');
 const { setWhatsAppClient } = require('./advisorNotifier.js');
 const { endpoints } = require('../../config/api.js');
-const { getReservationByPhone, getPendingReservations } = require('../../services/chatReservationService.js');
+const { getReservationByPhone, getPendingReservations, getCompletedOrders, getTakenOrders } = require('../../services/chatReservationService.js');
 const { saveOrUpdateContact, getContactByPhone, blockByPhone, unblockByPhone, listBlocked, isBlocked } = require('../../services/clientContactService.js');
 const { getActiveAssignmentsWithDetails, releaseAllAssignments } = require('../../services/chatAssignmentService.js');
 const { sendQREmail } = require('../../services/herald.js');
@@ -491,6 +491,62 @@ async function initializeClient() {
               logger.error(`Error getting active assignments: ${error.message}`);
               try {
                 await message.reply('⚠️ Error al obtener clientes atendidos.');
+              } catch (replyError) {
+                logger.debug(`Failed to send error reply`, replyError);
+              }
+            }
+            logger.info(`🛑 Returning early to avoid Claude processing`);
+            return;
+          }
+
+          // Check for "get orders taken" command - lists currently taken orders
+          if (msgLower.includes('get orders taken')) {
+            logger.info(`✅ Detected "get orders taken" command`);
+
+            try {
+              const taken = await getTakenOrders();
+
+              if (taken.length === 0) {
+                await message.reply('✅ No hay órdenes siendo atendidas en este momento.');
+              } else {
+                const list = taken.map((o, i) =>
+                  `${i + 1}. *${o.client_name || 'Sin nombre'}* - ${o.client_phone || 'Sin teléfono'}\n   📍 ${o.destination || 'N/A'}\n   👤 Asesor: ${o.advisor}\n   🕐 Desde: ${o.taken_at}`
+                ).join('\n\n');
+
+                await message.reply(`📞 *ÓRDENES EN PROGRESO (${taken.length}):*\n\n${list}`);
+              }
+            } catch (error) {
+              logger.error(`Error getting taken orders: ${error.message}`);
+              try {
+                await message.reply('⚠️ Error al obtener órdenes en progreso.');
+              } catch (replyError) {
+                logger.debug(`Failed to send error reply`, replyError);
+              }
+            }
+            logger.info(`🛑 Returning early to avoid Claude processing`);
+            return;
+          }
+
+          // Check for "get orders completed" command - lists last 50 completed orders
+          if (msgLower.includes('get orders completed')) {
+            logger.info(`✅ Detected "get orders completed" command`);
+
+            try {
+              const completed = await getCompletedOrders();
+
+              if (completed.length === 0) {
+                await message.reply('✅ No hay órdenes completadas registradas.');
+              } else {
+                const list = completed.map((o, i) =>
+                  `${i + 1}. *${o.client_name || 'Sin nombre'}* - ${o.client_phone || 'Sin teléfono'}\n   📍 ${o.destination || 'N/A'}\n   👤 Asesor: ${o.advisor}\n   ⏱️ Duración: ${o.duration_minutes || 'N/A'} min\n   ✅ Completado: ${o.completed_at}`
+                ).join('\n\n');
+
+                await message.reply(`✅ *ÓRDENES COMPLETADAS (últimas 50 de ${completed.length}):*\n\n${list}`);
+              }
+            } catch (error) {
+              logger.error(`Error getting completed orders: ${error.message}`);
+              try {
+                await message.reply('⚠️ Error al obtener órdenes completadas.');
               } catch (replyError) {
                 logger.debug(`Failed to send error reply`, replyError);
               }

@@ -142,10 +142,47 @@ async function getPendingReservations() {
   }
 }
 
+// Get completed orders (last 50 with advisor info)
+async function getCompletedOrders() {
+  try {
+    return await db.query(
+      `SELECT a.id, r.client_name, r.client_phone, r.destination, a.intranet_username AS advisor, a.duration_minutes, a.completed_at
+       FROM chat_reservations r
+       JOIN chat_assignments a ON a.chat_reservation_id = r.id
+       WHERE a.state = 'completed'
+       ORDER BY a.completed_at DESC
+       LIMIT 50`,
+      []
+    );
+  } catch (error) {
+    logger.error('Error getting completed orders', error);
+    throw error;
+  }
+}
+
+// Get taken orders (currently active assignments)
+async function getTakenOrders() {
+  try {
+    return await db.query(
+      `SELECT a.id, r.client_name, r.client_phone, r.destination, a.intranet_username AS advisor, a.taken_at
+       FROM chat_reservations r
+       JOIN chat_assignments a ON a.chat_reservation_id = r.id
+       WHERE a.state = 'taken'
+       ORDER BY a.taken_at ASC`,
+      []
+    );
+  } catch (error) {
+    logger.error('Error getting taken orders', error);
+    throw error;
+  }
+}
+
 module.exports = {
   parseReservationFromMessage,
   createReservation,
   getReservationByPhone,
   getReservationByLeadId,
-  getPendingReservations
+  getPendingReservations,
+  getCompletedOrders,
+  getTakenOrders
 };
