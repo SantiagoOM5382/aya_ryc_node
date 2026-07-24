@@ -305,11 +305,74 @@ async function getAdvisorNameByLeadId(leadId) {
   }
 }
 
+// Bulk release all active assignments
+async function releaseAllAssignments() {
+  try {
+    // Query all active assignments
+    const activeAssignments = await db.query(
+      'SELECT * FROM chat_assignments WHERE state = "taken"',
+      []
+    );
+
+    if (activeAssignments.length === 0) {
+      logger.info('No active assignments to release');
+      return { released: 0, failed: 0 };
+    }
+
+    let released = 0;
+    let failed = 0;
+    const completedAtColombia = getColombiaTimeSQL();
+
+    for (const assignment of activeAssignments) {
+      try {
+        // Calculate duration in minutes
+        let takenAt;
+        if (assignment.taken_at instanceof Date) {
+          takenAt = assignment.taken_at;
+        } else {
+          takenAt = new Date(assignment.taken_at.replace(' ', 'T'));
+        }
+
+        const completedAt = new Date(completedAtColombia.replace(' ', 'T'));
+        const durationMinutes = Math.round((completedAt.getTime() - takenAt.getTime()) / 60000);
+
+        // Update assignment
+        await db.execute(
+          'UPDATE chat_assignments SET state = ?, completed_at = ?, duration_minutes = ? WHERE id = ?',
+          ['completed', completedAtColombia, durationMinutes, assignment.id]
+        );
+
+        // Record in history
+        await recordAssignmentHistory(
+          assignment.chat_reservation_id,
+          assignment.intranet_username,
+          'released_bulk',
+          durationMinutes,
+          assignment.taken_at,
+          completedAtColombia
+        );
+
+        released++;
+      } catch (error) {
+        logger.error(`Error releasing assignment ${assignment.id}`, error);
+        failed++;
+      }
+    }
+
+    logger.info(`🎉 Bulk release complete: ${released} released, ${failed} failed`);
+    return { released, failed };
+  } catch (error) {
+    logger.error('Error in releaseAllAssignments', error);
+    throw error;
+  }
+}
+
 module.exports = {
   getOrCreateAssignment,
   getAssignment,
   claimAssignment,
   releaseAssignment,
+  releaseAllAssignments,
   getActiveAssignments,
   getActiveAssignmentsWithDetails,
   getAdvisorStats,
