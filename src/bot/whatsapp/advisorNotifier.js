@@ -1,9 +1,10 @@
 const logger = require('../../utils/logger.js');
 const fs = require('fs');
 const path = require('path');
+const config = require('../../config/index.js');
 
 let whatsappClient = null;
-let clientesGroupId = process.env.WHATSAPP_CLIENTES_GROUP_ID || null;
+let clientesGroupId = config.whatsapp?.clientesGroupId || process.env.WHATSAPP_CLIENTES_GROUP_ID || null;
 const GROUP_CONFIG_FILE = path.join(__dirname, '../../../logs', '.group-cache.json');
 
 function setWhatsAppClient(client) {

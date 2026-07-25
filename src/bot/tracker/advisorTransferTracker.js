@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const logger = require('../../utils/logger.js');
+const db = require('../../db/database.js');
 
 const LOGS_DIR = path.join(__dirname, '../../../logs');
 const TRANSFER_LOG = path.join(LOGS_DIR, 'advisor-transfer.log');

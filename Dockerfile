@@ -31,7 +31,8 @@ ENV NODE_OPTIONS="--no-deprecation"
 # Copiar node_modules desde builder stage
 COPY --from=builder /app/node_modules ./node_modules
 
-# Copiar código de la aplicación
+# Copiar código de la aplicación y configuración
+COPY config.hjson .
 COPY src ./src
 COPY prompts ./prompts
 COPY index.js .
@@ -41,9 +42,5 @@ VOLUME ["/app/.wwebjs_auth", "/app/.wwebjs_cache"]
 
 # Exponer puerto (interno 3000, se mapea a 3001 en docker-compose)
 EXPOSE 3000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})" || exit 1
 
 CMD ["node", "index.js"]

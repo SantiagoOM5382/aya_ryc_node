@@ -1,11 +1,13 @@
 const mysql = require('mysql2/promise');
 const logger = require('../utils/logger.js');
+const config = require('../config/index.js');
 
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'admin_tiquetes',
+  host: config.database.host,
+  user: config.database.user,
+  password: config.database.password,
+  database: config.database.database,
+  port: config.database.port,
   waitForConnections: true,
   connectionLimit: 5,
   queueLimit: 0

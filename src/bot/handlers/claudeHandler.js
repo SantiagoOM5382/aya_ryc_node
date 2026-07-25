@@ -11,7 +11,6 @@ const {
   getReadyForTransferChats
 } = require('../tracker/advisorTransferTracker.js');
 const { sendNotificationToAdvisors } = require('../whatsapp/advisorNotifier.js');
-const { endpoints } = require('../../config/api.js');
 const {
   parseReservationFromMessage,
   createReservation,

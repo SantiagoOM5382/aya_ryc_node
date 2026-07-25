@@ -2,7 +2,6 @@ require('dotenv').config();
 
 const logger = require('./src/utils/logger.js');
 const { startBot } = require('./src/bot.js');
-const { startAPI } = require('./src/api.js');
 
 // Validate environment
 if (!process.env.ANTHROPIC_API_KEY) {
@@ -12,15 +11,12 @@ if (!process.env.ANTHROPIC_API_KEY) {
 
 async function start() {
   try {
-    // Start API server
-    await startAPI();
-
     // Start WhatsApp bot
     await startBot();
 
-    logger.info('✅ All services started successfully');
+    logger.info('✅ Bot started successfully');
   } catch (error) {
-    logger.error('Failed to start services', error);
+    logger.error('Failed to start bot', error);
     process.exit(1);
   }
 }

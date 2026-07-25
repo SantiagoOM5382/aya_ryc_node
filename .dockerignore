@@ -8,3 +8,6 @@ docs
 .env
 .env.example
 .DS_Store
+.wwebjs_auth
+.wwebjs_cache
+.session-data

@@ -6,13 +6,13 @@ const path = require('path');
 const logger = require('../../utils/logger.js');
 const { callClaude } = require('../handlers/claudeHandler.js');
 const { setWhatsAppClient } = require('./advisorNotifier.js');
-const { endpoints } = require('../../config/api.js');
 const { getReservationByPhone, getPendingReservations, getCompletedOrders, getTakenOrders } = require('../../services/chatReservationService.js');
 const { saveOrUpdateContact, getContactByPhone, blockByPhone, unblockByPhone, listBlocked, isBlocked } = require('../../services/clientContactService.js');
-const { getActiveAssignmentsWithDetails, releaseAllAssignments } = require('../../services/chatAssignmentService.js');
+const { getActiveAssignmentsWithDetails, releaseAllAssignments, claimAssignment, releaseAssignment } = require('../../services/chatAssignmentService.js');
 const { sendQREmail } = require('../../services/herald.js');
 const db = require('../../db/database.js');
 const stateManager = require('../../utils/stateManager.js');
+const config = require('../../config/index.js');
 
 let client = null;
 
@@ -63,48 +63,24 @@ function isAdvisorReleasingChat(text) {
   return lowerText.includes('liberar');
 }
 
-// Call API to claim chat assignment
+// Claim chat assignment (direct call to service)
 async function claimChatAssignment(chatReservationId, advisorName) {
   try {
-    const response = await fetch(endpoints.claimChat(chatReservationId), {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ advisorName })
-    });
-
-    if (response.ok) {
-      logger.info(`✅ Chat claimed by ${advisorName} for reservation ${chatReservationId}`);
-      return true;
-    } else {
-      // Try to get error message from response
-      try {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `API error: ${response.statusText}`);
-      } catch (parseError) {
-        throw new Error(response.statusText);
-      }
-    }
+    await claimAssignment(chatReservationId, advisorName);
+    logger.info(`✅ Chat claimed by ${advisorName} for reservation ${chatReservationId}`);
+    return true;
   } catch (error) {
     logger.error(`Error claiming chat assignment: ${error.message}`);
     throw error;
   }
 }
 
-// Call API to release chat assignment
+// Release chat assignment (direct call to service)
 async function releaseChatAssignment(chatReservationId) {
   try {
-    const response = await fetch(endpoints.releaseChat(chatReservationId), {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' }
-    });
-
-    if (response.ok) {
-      logger.info(`✅ Chat released for reservation ${chatReservationId}`);
-      return true;
-    } else {
-      logger.warn(`Failed to release chat: ${response.statusText}`);
-      return false;
-    }
+    await releaseAssignment(chatReservationId);
+    logger.info(`✅ Chat released for reservation ${chatReservationId}`);
+    return true;
   } catch (error) {
     logger.error(`Error releasing chat assignment: ${error.message}`);
     return false;
@@ -224,7 +200,7 @@ async function initializeClient() {
         } catch (chatError) {
           logger.debug(`⚠️ Could not get chat name: ${chatError.message}`);
           // Fallback: check if it's the configured Clientes group ID
-          isClientesGroup = message.from === process.env.WHATSAPP_CLIENTES_GROUP_ID;
+          isClientesGroup = message.from === (config.whatsapp?.clientesGroupId || process.env.WHATSAPP_CLIENTES_GROUP_ID);
           logger.debug(`📢 Using fallback check: isClientes: ${isClientesGroup}`);
         }
 
@@ -639,23 +615,23 @@ async function initializeClient() {
             return;
           }
 
-          // Debug command: list all tracked chats
+          // Debug command: list all chats from database
           if (msgLower.includes('getchats')) {
-            const chatsList = Array.from(activeChats.entries()).map(([id, chat]) => ({
-              id,
-              name: chat.name || 'Unknown'
-            }));
-
-            const debugMsg = `📊 **CHATS RASTREADOS**\n\nTotal: ${activeChats.size}\n\n${
-              chatsList.length > 0
-                ? chatsList.map((c, i) => `${i + 1}. ${c.name} (${c.id})`).join('\n')
-                : 'No hay chats rastreados aún'
-            }`;
-
             try {
-              await message.reply(debugMsg);
+              const contacts = await getContactByPhone('%'); // Get all contacts (wildcard)
+              const query = 'SELECT COUNT(*) as total FROM chat_contacts';
+              const result = await db.query(query);
+              const total = result[0]?.total || 0;
+
+              const debugMsg = `📊 **CHATS EN BD**\n\nTotal: ${total}`;
+
+              try {
+                await message.reply(debugMsg);
+              } catch (error) {
+                logger.debug(`Failed to send getChats reply`, error);
+              }
             } catch (error) {
-              logger.debug(`Failed to send getChats reply`, error);
+              logger.error(`Error fetching chats from DB: ${error.message}`);
             }
 
             logger.info(`🛑 Returning early to avoid Claude processing`);
