@@ -3,11 +3,14 @@ FROM node:22-slim as builder
 
 WORKDIR /app
 
+# Evita que el postinstall de puppeteer descargue su propio Chromium (~300MB):
+# usamos el Chromium del sistema instalado en el stage final.
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+
 # Copiar package files
 COPY package*.json ./
 
-# Instalar dependencias (incluyendo dev para que npm ci funcione correctamente)
-RUN npm ci
+RUN npm ci --omit=dev
 
 # Production stage
 FROM node:22-slim

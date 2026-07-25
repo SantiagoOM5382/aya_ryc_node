@@ -818,6 +818,28 @@ async function initializeClient() {
             return;
           }
 
+          // Check for "logout" command - clears the WhatsApp session so it can be re-linked
+          if (msgLower === 'logout') {
+            logger.info(`✅ Detected "logout" command`);
+            try {
+              await message.reply('🔄 Cerrando sesión de WhatsApp. El proceso se reiniciará y se enviará un QR nuevo.');
+            } catch (replyError) {
+              logger.debug(`Failed to send logout reply`, replyError);
+            }
+            try {
+              await client.logout();
+            } catch (error) {
+              logger.warn(`⚠️ Error during client.logout(): ${error.message}`);
+            } finally {
+              // logout() doesn't reliably re-emit a fresh "qr" event on the same
+              // process. Exiting lets the container/process manager restart with
+              // a clean client, which then requests a new QR right away.
+              logger.info('🔒 Session closed, exiting process to force a clean restart...');
+              process.exit(1);
+            }
+            return;
+          }
+
         }
 
         // Ignore other group messages
