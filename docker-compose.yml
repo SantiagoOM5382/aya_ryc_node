@@ -1,19 +1,15 @@
-version: '3.8'
-
 services:
   aya-bot:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: aya-ryc-bot-docker
+    env_file:
+      - .env.docker
     environment:
       - NODE_ENV=production
-      - TYT_SERVICE_ENVIRONMENT=integration
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     ports:
       - "3001:3000"
-    volumes:
-      - ~/.aws:/root/.aws:ro
     restart: unless-stopped
     stdin_open: true
     tty: true

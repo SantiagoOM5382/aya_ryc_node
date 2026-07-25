@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20-slim as builder
+FROM node:22-slim as builder
 
 WORKDIR /app
 
@@ -10,7 +10,7 @@ COPY package*.json ./
 RUN npm ci
 
 # Production stage
-FROM node:20-slim
+FROM node:22-slim
 
 WORKDIR /app
 
@@ -31,8 +31,7 @@ ENV NODE_OPTIONS="--no-deprecation"
 # Copiar node_modules desde builder stage
 COPY --from=builder /app/node_modules ./node_modules
 
-# Copiar código de la aplicación y configuración
-COPY config.hjson .
+# Copiar código de la aplicación
 COPY src ./src
 COPY prompts ./prompts
 COPY index.js .
